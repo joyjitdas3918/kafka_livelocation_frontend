@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Boy Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(to right, #6a11cb, #2575fc);
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        }
+        .button {
+            display: inline-block;
+            width: 200px;
+            margin: 20px 10px;
+            padding: 15px;
+            font-size: 18px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .content {
+            display: none;
+            margin-top: 20px;
+        }
+        .content.active {
+            display: block;
+        }
+        input, button {
+            margin: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        h2 {
+            margin: 20px;
+        }
+        .section {
+            margin-bottom: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="role-selection">
+        <h1>Delivery Boy Tracker</h1>
+        <h2>Choose Your Role</h2>
+        <button class="button" onclick="showContent('user')">End User</button>
+        <button class="button" onclick="showContent('delivery')">Delivery Boy</button>
+    </div>
+
+    <div class="container content" id="user-content">
+        <h1>Delivery Boy Tracker</h1>
+        <div class="section">
+            <h2>End User</h2>
+            <input type="text" id="endUserDeliveryBoyId" placeholder="Enter Delivery Boy ID">
+            <button onclick="startPolling()">Start Tracking</button>
+            <div>
+                <h3 id="location">Location: </h3>
+                <h3 id="status">Status: </h3>
+            </div>
+        </div>
+        <button class="button" onclick="goBack()">Go Back</button>
+    </div>
+
+    <div class="container content" id="delivery-content">
+        <h1>Delivery Boy Tracker</h1>
+        <div class="section">
+            <h2>Delivery Boy</h2>
+            <input type="text" id="deliveryBoyId" placeholder="Enter Delivery Boy ID">
+            <input type="text" id="deliveryBoyStatus" placeholder="Enter Status">
+            <button onclick="startUpdating()">Start Updates</button>
+            <button onclick="stopUpdating()">Stop Updates</button>
+            <div>
+                <h3 id="updateMessage">Message: </h3>
+            </div>
+        </div>
+        <button class="button" onclick="goBack()">Go Back</button>
+    </div>
+
+    <script>
+        function showContent(role) {
+            document.getElementById('role-selection').style.display = 'none';
+            if (role === 'user') {
+                document.getElementById('user-content').classList.add('active');
+            } else if (role === 'delivery') {
+                document.getElementById('delivery-content').classList.add('active');
+            }
+        }
+
+        function goBack() {
+            document.getElementById('role-selection').style.display = 'block';
+            document.getElementById('user-content').classList.remove('active');
+            document.getElementById('delivery-content').classList.remove('active');
+        }
+
+        const locationElement = document.getElementById('location');
+        const statusElement = document.getElementById('status');
+        let pollingInterval;
+        let updateInterval;
+
+        async function fetchStatus(deliveryBoyId) {
+            try {
+                const response = await fetch(`http://localhost:8081/api/status?deliveryBoyId=${deliveryBoyId}`);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.text();
+                statusElement.innerText = `Status: ${data}`;
+            } catch (error) {
+                console.error('Error fetching status:', error);
+            }
+        }
+
+        async function fetchLocation(deliveryBoyId) {
+            try {
+                const response = await fetch(`http://localhost:8081/api/location?deliveryBoyId=${deliveryBoyId}`);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.text();
+                locationElement.innerText = `Location: ${data}`;
+            } catch (error) {
+                console.error('Error fetching location:', error);
+            }
+        }
+
+        function startPolling() {
+            const deliveryBoyId = document.getElementById('endUserDeliveryBoyId').value;
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            fetchStatus(deliveryBoyId);
+            fetchLocation(deliveryBoyId);
+            pollingInterval = setInterval(() => {
+                fetchStatus(deliveryBoyId);
+                fetchLocation(deliveryBoyId);
+            }, 1000); // Poll every second
+        }
+
+        async function updateLocationAndStatus() {
+            const deliveryBoyId = document.getElementById('deliveryBoyId').value;
+            const status = document.getElementById('deliveryBoyStatus').value;
+            try {
+                const locationResponse = await fetch(`http://localhost:8083/delivery-boy/update-location?deliveryBoyId=${deliveryBoyId}`, {
+                    method: 'POST'
+                });
+                const statusResponse = await fetch(`http://localhost:8083/delivery-boy/update-status?deliveryBoyId=${deliveryBoyId}&status=${status}`, {
+                    method: 'POST'
+                });
+
+                if (!locationResponse.ok || !statusResponse.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const locationData = await locationResponse.json();
+                const statusData = await statusResponse.json();
+                document.getElementById('updateMessage').innerText = `Message: ${locationData.message}, ${statusData.message}`;
+            } catch (error) {
+                console.error('Error updating location and status:', error);
+                document.getElementById('updateMessage').innerText = `Error: ${error.message}`;
+            }
+        }
+
+        function startUpdating() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+            updateLocationAndStatus();
+            updateInterval = setInterval(() => {
+                updateLocationAndStatus();
+            }, 1000); // Update every second
+        }
+
+        function stopUpdating() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                document.getElementById('updateMessage').innerText = 'Updates stopped';
+            }
+        }
+    </script>
+</body>
+</html>
+
